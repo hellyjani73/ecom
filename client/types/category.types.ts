@@ -4,7 +4,16 @@ export interface Category {
   slug: string;
   description?: string;
   image?: string;
-  isActive: boolean;
+  imageUrl?: string;
+  parentId?: string | Category | null;
+  priority: number;
+  status: 'active' | 'inactive';
+  createdBy?: string | {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  isActive?: boolean; // Backward compatibility
   createdAt: string;
   updatedAt: string;
 }
@@ -17,7 +26,11 @@ export interface CreateCategoryRequest {
   name: string;
   description?: string;
   image?: string;
-  isActive?: boolean;
+  imageUrl?: string;
+  parentId?: string | null;
+  priority?: number;
+  status?: 'active' | 'inactive';
+  isActive?: boolean; // Backward compatibility
 }
 
 export interface UpdateCategoryRequest extends Partial<CreateCategoryRequest> {}

@@ -30,5 +30,14 @@ export const authService = {
   async logoutAll(): Promise<void> {
     await axiosInstance.post('/auth/logout-all');
   },
+
+  async checkAdmin(): Promise<boolean> {
+    try {
+      const response = await axiosInstance.get<{ isAdmin: boolean }>('/auth/check-admin');
+      return response.data.isAdmin;
+    } catch (error) {
+      return false;
+    }
+  },
 };
 
