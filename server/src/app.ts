@@ -2,7 +2,6 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import routes from './routes';
 import cors from 'cors';
-import path from 'path';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
@@ -14,14 +13,24 @@ dotenv.config();
 const app = express();
 
 // ✅ 1. CORS middleware
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.CLIENT_URL || 'http://localhost:3000']
+  : ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:3001'];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000', // Replace with specific domain(s) in production
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'auth-token'],
   credentials: true,
 }));
-
-app.options('*', cors()); // Preflight requests
 
 // ✅ 2. Cookie parser middleware
 app.use(cookieParser());
@@ -50,8 +59,7 @@ app.use('/api/auth/register', authLimiter);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
-// ✅ 3. Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+
 
 // ✅ 4. MongoDB Connection
 const connectToMongo = async () => {

@@ -73,12 +73,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(userDetails);
         // Store user details in localStorage for backward compatibility
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.DASHBOARD);
+        navigate(ROUTES.HOME);
       } else {
         throw new Error(response.data.message || 'Login failed');
       }
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || 'Login failed');
+      // Check for network errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
+      }
+      // Check for timeout errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        throw new Error('Request timeout. Please try again.');
+      }
+      // Return server error message or default
+      throw new Error(error.response?.data?.message || error.message || 'Login failed. Please try again.');
     }
   };
 
@@ -89,12 +98,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { userDetails } = response.data.data;
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.DASHBOARD);
+        navigate(ROUTES.HOME);
       } else {
         throw new Error(response.data.message || 'Registration failed');
       }
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || 'Registration failed');
+      // Check for network errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
+      }
+      // Check for timeout errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        throw new Error('Request timeout. Please try again.');
+      }
+      // Return server error message or default
+      throw new Error(error.response?.data?.message || error.message || 'Registration failed. Please try again.');
     }
   };
 
@@ -105,12 +123,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { userDetails } = response.data.data;
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.DASHBOARD);
+        navigate(ROUTES.HOME);
       } else {
         throw new Error(response.data.message || 'Google login failed');
       }
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || 'Google login failed');
+      // Check for network errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
+      }
+      // Check for timeout errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        throw new Error('Request timeout. Please try again.');
+      }
+      // Return server error message or default
+      throw new Error(error.response?.data?.message || error.message || 'Google login failed. Please try again.');
     }
   };
 

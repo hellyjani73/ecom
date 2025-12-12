@@ -19,6 +19,7 @@ const controller = "auth";
 const axiosInstance: AxiosInstance = axios.create({
     baseURL: `${environment.apiUrl}/api/${controller}`,
     withCredentials: true, // Important for HttpOnly cookies
+    timeout: 10000, // 10 second timeout
     headers: {
         "Content-Type": "application/json",
     },

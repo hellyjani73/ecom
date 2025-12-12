@@ -1,9 +1,10 @@
 import React, { FC, useState } from 'react';
 import { Avatar, IconButton, Popover } from '@mui/material';
-import { PasswordScores } from '../constants/index';
+
 import images from '../assets/images';
 import { Regex } from '../utils/strings';
 import { ValidationMessage } from '../utils/resource';
+import { PasswordScores } from '../constants';
 
 export type PasswordValidatorProps = {
   value: string;

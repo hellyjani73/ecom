@@ -1,3 +1,5 @@
+import Cookies from 'js-cookie';
+
 export const handleCommonErrors = (error: any, addToast: Function) => {
     if (error.code === 'UNAUTHORIZED') {
         addToast("Unauthorized Access", { appearance: "error", autoDismiss: true });

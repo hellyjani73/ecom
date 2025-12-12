@@ -8,19 +8,10 @@ interface ProtectedRouteProps {
 }
 
 const MODULE_ROUTES = [
-  "/customer",
-  "/rent-cloth",
-  "/rental-schedule",
-  "/cloth-availability",
-  "/cloth-category",
-  "/cloth-fabric",
-  "/shop-expenses",
-  "/management",
-  "/employees",
-  "/report",
+  
   "/admin/vendors-management",
-  "/admin/vendor-subscriptions",
-  "/washing",
+
+  
 ];
 
 const ProtectedRoute: FC<ProtectedRouteProps> = ({ children }) => {

@@ -1,14 +1,15 @@
-import { AppBar, Avatar, Container, Grid, Hidden, IconButton, Toolbar, Typography, useMediaQuery, useTheme } from '@mui/material'
+import { AppBar, Avatar, Container, IconButton, Toolbar, Typography, useMediaQuery, useTheme, Box } from '@mui/material'
 import React from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import images from '../assets/images'
-import AuthenticationDrawer from '../components/Navigation/AuthenticationDrawer'
+
 
 const NotFoundPage: React.FC = () => {
     const theme = useTheme();
-    const mobileMenu = useMediaQuery(theme.breakpoints.down('lg'));
-    const [openSidebar, setOpenSidebar] = React.useState(!mobileMenu);
+    const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+    const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
+    const [openSidebar, setOpenSidebar] = React.useState(!isMobile);
 
     const handleDrawerToggle = () => {
         setOpenSidebar(!openSidebar);
@@ -27,46 +28,38 @@ const NotFoundPage: React.FC = () => {
                         className={`header ${openSidebar ? 'open' : ''}`}
                     >
                         <Toolbar>
-                            <Grid container>
-                                <Grid item xs>
-                                    <div className="d-flex align-items-center">
-                                        <IconButton
-                                            color="inherit"
-                                            aria-label="open drawer"
-                                            onClick={handleDrawerToggle}
-                                            edge="start"
-                                            sx={{ mr: 1 }}
-                                        >
-                                            <Avatar src={images.MenuCollapsible} alt="MenuCollapsible" />
-                                        </IconButton>
-                                        <Hidden lgDown>
-                                            <Typography variant="h5" noWrap component="p" className="mb-6p">
-                                                ClothiQ
-                                            </Typography>
-                                        </Hidden>
-                                        <Hidden lgUp>
-                                            <Link to="/" className="d-inline-flex">
-                                                <Typography variant='h4'>
-                                                    ClothiQ
-                                                </Typography>
-                                            </Link>
-                                        </Hidden>
-                                    </div>
-                                </Grid>
-                            </Grid>
+                            <Box sx={{ width: '100%', display: 'flex', alignItems: 'center' }}>
+                                <IconButton
+                                    color="inherit"
+                                    aria-label="open drawer"
+                                    onClick={handleDrawerToggle}
+                                    edge="start"
+                                    sx={{ mr: 1 }}
+                                >
+                                    <Avatar src={images.MenuCollapsible} alt="MenuCollapsible" />
+                                </IconButton>
+                                {isDesktop && (
+                                    <Typography variant="h5" noWrap component="p" className="mb-6p">
+                                        Ecom
+                                    </Typography>
+                                )}
+                                {isMobile && (
+                                    <Link to="/" className="d-inline-flex">
+                                        <Typography variant='h4'>
+                                            Ecom
+                                        </Typography>
+                                    </Link>
+                                )}
+                            </Box>
                         </Toolbar>
                     </AppBar>
-                    <AuthenticationDrawer
-                        isOpen={openSidebar}
-                        mobileMenu={mobileMenu}
-                        handleDrawerToggle={handleDrawerToggle}
-                    />
+                   
                     <div className="main-content">
-                        <Hidden lgUp>
+                        {isMobile && (
                             <Typography variant="h5" noWrap component="p" className="mb-25p font-MaderaMedium">
 
                             </Typography>
-                        </Hidden>
+                        )}
                         <Helmet>
                             <title>404</title>
                             <meta name="description" content="404" />

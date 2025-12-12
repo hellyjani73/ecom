@@ -11,8 +11,8 @@ dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (JWT_SECRET + '_refresh');
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '15m';
+const JWT_REFRESH_EXPIRES_IN: string = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -37,12 +37,12 @@ export class AuthService extends BaseService {
         };
 
         const accessToken = jwt.sign(payload, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
-        });
+            expiresIn: JWT_EXPIRES_IN as string,
+        } as jwt.SignOptions);
 
         const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, {
-            expiresIn: JWT_REFRESH_EXPIRES_IN,
-        });
+            expiresIn: JWT_REFRESH_EXPIRES_IN as string,
+        } as jwt.SignOptions);
 
         return { accessToken, refreshToken };
     }
