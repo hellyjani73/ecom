@@ -48,17 +48,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Token exists, try to refresh to validate
         try {
           await refreshToken();
+          // Load user details from localStorage if available
+          const storedUserDetails = localStorage.getItem('userDetails');
+          if (storedUserDetails) {
+            try {
+              const userDetails = JSON.parse(storedUserDetails);
+              setUser(userDetails);
+            } catch (e) {
+              console.error('Failed to parse user details:', e);
+            }
+          }
         } catch (error) {
           // Token invalid, clear and redirect
           authService.clearAuthCookies();
+          localStorage.removeItem('userDetails');
           setUser(null);
         }
       } else {
-        setUser(null);
+        // No token, check localStorage for user details
+        const storedUserDetails = localStorage.getItem('userDetails');
+        if (storedUserDetails) {
+          try {
+            const userDetails = JSON.parse(storedUserDetails);
+            setUser(userDetails);
+          } catch (e) {
+            console.error('Failed to parse user details:', e);
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       authService.clearAuthCookies();
+      localStorage.removeItem('userDetails');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -71,9 +95,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.data.success && response.data.data) {
         const { userDetails } = response.data.data;
         setUser(userDetails);
-        // Store user details in localStorage for backward compatibility
+        // Store user details in localStorage for backward compatibility and session management
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.HOME);
+        
+        // Wait a moment for HttpOnly cookies to be set by the browser
+        // This ensures the cookie is available before navigation
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Check role (case-insensitive) - check both 'role' and 'userType' fields
+        const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();
+        
+        // Redirect based on user role
+        if (userRole === 'admin') {
+          navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
+        } else {
+          navigate(ROUTES.HOME, { replace: true });
+        }
       } else {
         throw new Error(response.data.message || 'Login failed');
       }
@@ -98,7 +135,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { userDetails } = response.data.data;
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.HOME);
+        
+        // Check role (case-insensitive) - check both 'role' and 'userType' fields
+        const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();
+        
+        // Redirect based on user role
+        if (userRole === 'admin') {
+          navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
+        } else {
+          navigate(ROUTES.HOME, { replace: true });
+        }
       } else {
         throw new Error(response.data.message || 'Registration failed');
       }
@@ -123,7 +169,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { userDetails } = response.data.data;
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
-        navigate(ROUTES.HOME);
+        
+        // Check role (case-insensitive) - check both 'role' and 'userType' fields
+        const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();
+        
+        // Redirect based on user role
+        if (userRole === 'admin') {
+          navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
+        } else {
+          navigate(ROUTES.HOME, { replace: true });
+        }
       } else {
         throw new Error(response.data.message || 'Google login failed');
       }
@@ -142,15 +197,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    // Clear state immediately (synchronously) - do this first
+    authService.clearAuthCookies();
+    localStorage.removeItem('userDetails');
+    localStorage.removeItem('modules'); // Also clear modules if exists
+    setUser(null);
+    
+    // Stop any pending API calls by redirecting immediately
+    // Use replace to prevent back button from going to admin panel
+    // This must happen synchronously before any async operations
+    window.location.replace('/');
+    
+    // The redirect above will stop execution, but in case it doesn't,
+    // we still try to call logout API (though it likely won't execute)
     try {
       await authService.Logout();
     } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      authService.clearAuthCookies();
-      localStorage.removeItem('userDetails');
-      setUser(null);
-      navigate(ROUTES.LOGIN);
+      // Ignore all errors - we've already cleared state and redirected
     }
   };
 

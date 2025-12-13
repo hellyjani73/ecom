@@ -76,3 +76,4 @@ const BottomBar: React.FC<BottomBarProps> = ({ wishlistCount, cartCount }) => {
 
 export default BottomBar;
 
+
