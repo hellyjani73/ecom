@@ -178,7 +178,7 @@ const productSchema: Schema<IProduct> = new Schema(
     basePrice: { type: Number, required: true, min: 0.01 },
     compareAtPrice: { type: Number, min: 0.01 },
     costPrice: { type: Number, min: 0 },
-    taxRate: { type: Number, default: 18, min: 0, max: 100 },
+    taxRate: { type: Number, min: 0, max: 100 },
     
     // Variants
     variantOptions: [variantOptionSchema],

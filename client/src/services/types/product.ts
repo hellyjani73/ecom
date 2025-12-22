@@ -9,6 +9,13 @@ export interface VariantOption {
   values: string[];
 }
 
+export interface VariantImage {
+  url: string;
+  altText?: string;
+  isPrimary: boolean;
+  order: number;
+}
+
 export interface Variant {
   variantName: string;
   sku: string;
@@ -17,7 +24,8 @@ export interface Variant {
   costPrice?: number;
   stock: number;
   lowStockThreshold: number;
-  image?: string;
+  image?: string; // Legacy support
+  images?: VariantImage[]; // New: Multiple images per variant
   isActive: boolean;
   attributes: { [key: string]: string };
 }

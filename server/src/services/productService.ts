@@ -3,15 +3,45 @@ import { Product, IProduct, IVariant } from '../models/productModel';
 import { Category } from '../models/categoryModel';
 import { AuthenticatedRequest } from '../middleware/middleware';
 
+// Helper function to generate category code from category name
+const getCategoryCode = (categoryName: string): string => {
+  // Take first 4 characters, remove spaces and special chars, convert to uppercase
+  return categoryName
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .substring(0, 4)
+    .toUpperCase()
+    .padEnd(4, 'X'); // Pad to 4 chars if shorter
+};
+
 // Helper function to generate unique SKU
-const generateSKU = async (): Promise<string> => {
+const generateSKU = async (parentCategory?: string, categoryId?: string): Promise<string> => {
   let sku: string;
   let isUnique = false;
   
+  // Get parent category code (MEN, WOMEN, CHILDREN)
+  const parentCode = parentCategory ? parentCategory.toUpperCase().substring(0, 3) : 'GEN';
+  
+  // Get category code
+  let categoryCode = 'CAT';
+  if (categoryId) {
+    try {
+      const category = await Category.findById(categoryId);
+      if (category) {
+        categoryCode = getCategoryCode(category.name);
+      }
+    } catch (error) {
+      console.error('Error fetching category for SKU generation:', error);
+    }
+  }
+  
   while (!isUnique) {
-    // Generate 6 random alphanumeric characters
-    const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
-    sku = `PROD-${randomChars}`;
+    // Generate exactly 6 random alphanumeric characters (uppercase)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let randomChars = '';
+    for (let i = 0; i < 6; i++) {
+      randomChars += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    sku = `PROD-${parentCode}-${categoryCode}-${randomChars}`;
     
     // Check if SKU exists
     const existing = await Product.findOne({ sku });
@@ -98,7 +128,7 @@ export class ProductService {
       // Generate SKU if not provided
       let sku = data.sku;
       if (!sku) {
-        sku = await generateSKU();
+        sku = await generateSKU(data.parentCategory, data.category);
       } else {
         // Check if SKU already exists
         const existing = await Product.findOne({ sku: sku.toUpperCase() });
@@ -155,7 +185,7 @@ export class ProductService {
         basePrice: data.basePrice,
         compareAtPrice: data.compareAtPrice,
         costPrice: data.costPrice,
-        taxRate: data.taxRate || 18,
+        taxRate: data.taxRate || undefined,
         variantOptions: data.variantOptions || [],
         variants: variants,
         stock: data.productType === 'simple' ? (data.stock || 0) : undefined,
