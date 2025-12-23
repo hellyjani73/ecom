@@ -123,5 +123,54 @@ export const productService = {
   UploadImageToCloudinary: async (image: string): Promise<AxiosResponse<CommonResponse>> => {
     return axiosInstance.post<CommonResponse>("/upload-image", { image });
   },
+
+  // Get featured products (public endpoint, no auth required)
+  GetFeaturedProducts: async (limit?: number): Promise<AxiosResponse<ProductListResponse>> => {
+    const params = new URLSearchParams();
+    if (limit) {
+      params.append('limit', String(limit));
+    }
+    // Use a separate axios instance without auth for public endpoints
+    const publicAxiosInstance = axios.create({
+      baseURL: `${environment.apiUrl}/api/${controller}`,
+      timeout: 30000,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    return publicAxiosInstance.get<ProductListResponse>(`/public/featured?${params.toString()}`);
+  },
+
+  // Get public products (no auth required)
+  GetPublicProducts: async (filters?: ProductListFilters): Promise<AxiosResponse<ProductListResponse>> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const publicAxiosInstance = axios.create({
+      baseURL: `${environment.apiUrl}/api/${controller}`,
+      timeout: 30000,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    return publicAxiosInstance.get<ProductListResponse>(`/public?${params.toString()}`);
+  },
+
+  // Get public product by ID (no auth required)
+  GetPublicProductById: async (id: string): Promise<AxiosResponse<ProductResponse>> => {
+    const publicAxiosInstance = axios.create({
+      baseURL: `${environment.apiUrl}/api/${controller}`,
+      timeout: 30000,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    return publicAxiosInstance.get<ProductResponse>(`/public/${id}`);
+  },
 };
 

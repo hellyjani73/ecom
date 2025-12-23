@@ -24,6 +24,8 @@ const AdminProducts: React.FC = () => {
     stockStatus: 'all',
     minPrice: undefined,
     maxPrice: undefined,
+    size: '',
+    color: '',
     sortBy: 'date',
     sortOrder: 'desc',
     page: 1,
@@ -32,6 +34,10 @@ const AdminProducts: React.FC = () => {
 
   // Categories for filter dropdowns
   const [categories, setCategories] = useState<Array<{ _id: string; name: string; parentCategory?: string }>>([]);
+  
+  // Default sizes and colors for filters
+  const defaultSizes: string[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  const defaultColors: string[] = ['Red', 'Blue', 'Black', 'White', 'Green', 'Yellow', 'Pink', 'Purple', 'Orange', 'Gray', 'Brown', 'Navy'];
 
   useEffect(() => {
     fetchProducts();
@@ -269,6 +275,34 @@ const AdminProducts: React.FC = () => {
           </div>
 
           <div className="filter-group">
+            <label>Size</label>
+            <select
+              className="filter-select"
+              value={filters.size || ''}
+              onChange={(e) => handleFilterChange('size', e.target.value)}
+            >
+              <option value="">All Sizes</option>
+              {defaultSizes.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>Color</label>
+            <select
+              className="filter-select"
+              value={filters.color || ''}
+              onChange={(e) => handleFilterChange('color', e.target.value)}
+            >
+              <option value="">All Colors</option>
+              {defaultColors.map(color => (
+                <option key={color} value={color}>{color}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
             <label>Price Range</label>
             <div className="price-range">
               <input
@@ -379,8 +413,130 @@ const AdminProducts: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => {
+                {products.flatMap((product) => {
                   const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0];
+                  
+                  // If it's a variant product, display each variant as a separate row
+                  if (product.productType === 'variant' && product.variants && product.variants.length > 0) {
+                    return product.variants.map((variant, variantIndex) => {
+                      const variantImage = variant.images?.find(img => img.isPrimary) || variant.images?.[0] || primaryImage;
+                      const variantStockStatus = variant.stock === 0 
+                        ? 'out_of_stock' 
+                        : variant.stock <= (variant.lowStockThreshold || product.lowStockThreshold || 5)
+                        ? 'low_stock'
+                        : 'in_stock';
+                      
+                      // Get variant attributes for display
+                      const variantAttributes = Object.entries(variant.attributes || {})
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(', ');
+                      
+                      return (
+                        <tr key={`${product._id}-variant-${variantIndex}`} style={{ backgroundColor: variantIndex % 2 === 0 ? '#fafafa' : 'white' }}>
+                          <td className="checkbox-cell">
+                            <input
+                              type="checkbox"
+                              checked={selectedProducts.has(product._id)}
+                              onChange={() => handleSelectProduct(product._id)}
+                            />
+                          </td>
+                          <td className="image-cell">
+                            {variantImage ? (
+                              <img
+                                src={variantImage.url}
+                                alt={variantImage.altText || `${product.name} - ${variantAttributes}`}
+                                className="product-image"
+                              />
+                            ) : (
+                              <div className="product-image" style={{ background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                📦
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="product-name">{product.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                              {variantAttributes || variant.variantName}
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                              {product.isFeatured && (
+                                <span className="category-badge" style={{ background: '#fef3c7', color: '#92400e', fontSize: '0.7rem' }}>
+                                  Featured
+                                </span>
+                              )}
+                              <span className="category-badge" style={{ background: '#dbeafe', color: '#1e40af', fontSize: '0.7rem' }}>
+                                Variant
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="product-sku">{variant.sku || product.sku}</div>
+                          </td>
+                          <td>
+                            {product.parentCategory && (
+                              <span className="category-badge">
+                                {product.parentCategory.charAt(0).toUpperCase() + product.parentCategory.slice(1)}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {(product.category as any)?.name || 'N/A'}
+                          </td>
+                          <td className="price-cell">
+                            ₹{variant.price?.toFixed(2) || product.basePrice.toFixed(2)}
+                          </td>
+                          <td>
+                            <span className={`stock-status-badge ${variantStockStatus}`}>
+                              {variantStockStatus === 'out_of_stock' ? 'Out Of Stock' : 
+                               variantStockStatus === 'low_stock' ? 'Low Stock' : 'In Stock'}
+                            </span>
+                          </td>
+                          <td>
+                            {variant.stock || 0}
+                          </td>
+                          <td>
+                            <label className="status-toggle">
+                              <input
+                                type="checkbox"
+                                checked={variant.isActive !== false && product.isActive}
+                                onChange={() => handleToggleStatus(product._id, product.isActive)}
+                                disabled
+                                title="Toggle variant status from product edit page"
+                              />
+                              <span className="status-toggle-slider"></span>
+                            </label>
+                          </td>
+                          <td className="actions-cell">
+                            <button
+                              className="action-btn view-btn"
+                              onClick={() => navigate(`${ROUTES.ADMIN_PRODUCTS}/${product._id}/view`)}
+                              title="View Product"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              className="action-btn edit-btn"
+                              onClick={() => navigate(`${ROUTES.ADMIN_PRODUCTS}/${product._id}/edit`)}
+                              title="Edit Product"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="action-btn delete-btn"
+                              onClick={() => handleDelete(product._id)}
+                              title="Delete Product"
+                              disabled
+                              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                            >
+                              🗑️
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  }
+                  
+                  // For simple products, display as normal
                   return (
                     <tr key={product._id}>
                       <td className="checkbox-cell">
@@ -405,11 +561,13 @@ const AdminProducts: React.FC = () => {
                       </td>
                       <td>
                         <div className="product-name">{product.name}</div>
-                        {product.isFeatured && (
-                          <span className="category-badge" style={{ background: '#fef3c7', color: '#92400e' }}>
-                            Featured
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                          {product.isFeatured && (
+                            <span className="category-badge" style={{ background: '#fef3c7', color: '#92400e' }}>
+                              Featured
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div className="product-sku">{product.sku}</div>
@@ -434,9 +592,7 @@ const AdminProducts: React.FC = () => {
                       </td>
                       <td>{getStockStatusBadge(product)}</td>
                       <td>
-                        {product.productType === 'variant'
-                          ? product.totalStock || 0
-                          : product.stock || 0}
+                        {product.stock || 0}
                       </td>
                       <td>
                         <label className="status-toggle">
@@ -482,6 +638,19 @@ const AdminProducts: React.FC = () => {
           <div className="pagination">
             <div className="pagination-info">
               Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalProducts)} of {totalProducts} products
+              {(() => {
+                const totalVariants = products.reduce((sum, p) => {
+                  if (p.productType === 'variant' && p.variants) {
+                    return sum + p.variants.length;
+                  }
+                  return sum + 1;
+                }, 0);
+                const variantProducts = products.filter(p => p.productType === 'variant' && p.variants && p.variants.length > 0).length;
+                if (variantProducts > 0) {
+                  return ` (${totalVariants} rows including variants)`;
+                }
+                return '';
+              })()}
             </div>
             <div className="pagination-controls">
               <button

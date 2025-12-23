@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import mongoose from 'mongoose';
 import { Product, IProduct, IVariant } from '../models/productModel';
 import { Category } from '../models/categoryModel';
 import { AuthenticatedRequest } from '../middleware/middleware';
@@ -207,13 +208,22 @@ export class ProductService {
         scheduledSaleEnd: data.scheduledSaleEnd,
       };
       
-      // Ensure at least one image if provided
-      if (productData.images.length > 0) {
-        // Set first image as primary if none is marked
+      // Ensure images array is properly formatted
+      if (productData.images && productData.images.length > 0) {
+        productData.images = productData.images.map((img: any, index: number) => ({
+          url: img.url || '',
+          altText: img.altText || '',
+          isPrimary: img.isPrimary || (index === 0 && !productData.images.some((i: any) => i.isPrimary)),
+          order: img.order !== undefined ? img.order : index,
+        }));
+        
+        // Ensure at least one image is primary
         const hasPrimary = productData.images.some((img: any) => img.isPrimary);
-        if (!hasPrimary) {
+        if (!hasPrimary && productData.images.length > 0) {
           productData.images[0].isPrimary = true;
         }
+      } else {
+        productData.images = [];
       }
       
       const product = new Product(productData);
@@ -239,6 +249,8 @@ export class ProductService {
         stockStatus,
         minPrice,
         maxPrice,
+        size,
+        color,
         sortBy = 'createdAt',
         sortOrder = 'desc',
         page = 1,
@@ -296,30 +308,61 @@ export class ProductService {
         sort.createdAt = -1;
       }
       
-      // Pagination
-      const pageNum = Number(page);
-      const limitNum = Number(limit);
-      const skip = (pageNum - 1) * limitNum;
-      
-      // Execute query
+      // Execute query - fetch all matching products first (before size/color filters)
       let products = await Product.find(query)
         .populate('category', 'name image')
         .sort(sort)
-        .skip(skip)
-        .limit(limitNum)
         .lean();
       
+      // Apply size filter if specified
+      if (size) {
+        products = products.filter((product: any) => {
+          if (product.productType === 'variant') {
+            // Check if any variant has the specified size
+            return product.variants?.some((v: any) => 
+              v.attributes && (v.attributes.Size === size || v.attributes.size === size)
+            ) || false;
+          }
+          // Simple products don't have size variants
+          return false;
+        });
+      }
+
+      // Apply color filter if specified
+      if (color) {
+        products = products.filter((product: any) => {
+          if (product.productType === 'variant') {
+            // Check if any variant has the specified color
+            return product.variants?.some((v: any) => 
+              v.attributes && (v.attributes.Color === color || v.attributes.color === color)
+            ) || false;
+          }
+          // Simple products don't have color variants
+          return false;
+        });
+      }
+
       // Apply stock status filter if specified
       if (stockStatus && stockStatus !== 'all') {
         products = products.filter((product: any) => {
           let status: string;
           if (product.productType === 'variant') {
             const totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
-            if (totalStock === 0) status = 'out_of_stock';
-            else if (product.variants?.some((v: any) => v.stock > 0 && v.stock <= (v.lowStockThreshold || 5))) {
-              status = 'low_stock';
+            if (totalStock === 0) {
+              status = 'out_of_stock';
             } else {
-              status = 'in_stock';
+              // Check if any variant has low stock
+              const lowStockThreshold = product.lowStockThreshold || 5;
+              const hasLowStock = product.variants?.some((v: any) => {
+                const variantStock = v.stock || 0;
+                const variantThreshold = v.lowStockThreshold || lowStockThreshold;
+                return variantStock > 0 && variantStock <= variantThreshold;
+              });
+              if (hasLowStock) {
+                status = 'low_stock';
+              } else {
+                status = 'in_stock';
+              }
             }
           } else {
             if (product.stock === 0) status = 'out_of_stock';
@@ -339,10 +382,19 @@ export class ProductService {
           totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
           if (totalStock === 0) {
             stockStatus = 'out_of_stock';
-          } else if (product.variants?.some((v: any) => v.stock > 0 && v.stock <= (v.lowStockThreshold || 5))) {
-            stockStatus = 'low_stock';
           } else {
-            stockStatus = 'in_stock';
+            // Check if any variant has low stock
+            const lowStockThreshold = product.lowStockThreshold || 5;
+            const hasLowStock = product.variants?.some((v: any) => {
+              const variantStock = v.stock || 0;
+              const variantThreshold = v.lowStockThreshold || lowStockThreshold;
+              return variantStock > 0 && variantStock <= variantThreshold;
+            });
+            if (hasLowStock) {
+              stockStatus = 'low_stock';
+            } else {
+              stockStatus = 'in_stock';
+            }
           }
         } else {
           totalStock = product.stock || 0;
@@ -362,11 +414,17 @@ export class ProductService {
         };
       });
       
-      // Get total count
-      const total = await Product.countDocuments(query);
+      // Get total count (after applying all filters including size, color, and stockStatus)
+      const total = products.length;
+      
+      // Apply pagination to filtered results
+      const pageNum = Number(page);
+      const limitNum = Number(limit);
+      const skip = (pageNum - 1) * limitNum;
+      const paginatedProducts = products.slice(skip, skip + limitNum);
       
       return {
-        products,
+        products: paginatedProducts,
         total,
         page: pageNum,
         limit: limitNum,
@@ -387,6 +445,28 @@ export class ProductService {
       if (!product) {
         throw new Error('Product not found');
       }
+      
+      const productObj = product.toObject();
+      
+      // Log product data for debugging
+      console.log('Fetching product:', {
+        id: product._id,
+        name: product.name,
+        productType: product.productType,
+        imagesCount: product.images?.length || 0,
+        images: product.images,
+        stock: product.stock,
+        variantsCount: product.variants?.length || 0,
+        variantsWithImages: product.variants?.filter((v: any) => v.images && v.images.length > 0).length || 0,
+        variantsWithStock: product.variants?.filter((v: any) => (v.stock || 0) > 0).length || 0,
+        totalVariantStock: product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0,
+        sampleVariant: product.variants?.[0] ? {
+          name: product.variants[0].variantName,
+          stock: product.variants[0].stock,
+          imagesCount: product.variants[0].images?.length || 0,
+          images: product.variants[0].images,
+        } : null,
+      });
       
       // Add computed fields
       let stockStatus: string;
@@ -412,12 +492,30 @@ export class ProductService {
         }
       }
       
+      // Ensure variants are properly included in the response
+      const responseProduct = {
+        ...productObj,
+        stockStatus,
+        totalStock,
+        // Explicitly ensure variants are included with all their data
+        variants: productObj.variants || [],
+      };
+      
+      // Log what we're returning
+      console.log('Returning product with variants:', {
+        variantsCount: responseProduct.variants?.length || 0,
+        variantsWithStock: responseProduct.variants?.filter((v: any) => (v.stock || 0) > 0).length || 0,
+        variantsWithImages: responseProduct.variants?.filter((v: any) => v.images && v.images.length > 0).length || 0,
+        totalVariantStock: responseProduct.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0,
+        sampleVariant: responseProduct.variants?.[0] ? {
+          name: responseProduct.variants[0].variantName,
+          stock: responseProduct.variants[0].stock,
+          imagesCount: responseProduct.variants[0].images?.length || 0,
+        } : null,
+      });
+      
       return {
-        product: {
-          ...product.toObject(),
-          stockStatus,
-          totalStock,
-        },
+        product: responseProduct,
         message: 'Product fetched successfully',
       };
     } catch (error: any) {
@@ -453,7 +551,14 @@ export class ProductService {
       // Update other fields
       if (data.name !== undefined) product.name = data.name.trim();
       if (data.parentCategory !== undefined) product.parentCategory = data.parentCategory;
-      if (data.category !== undefined) product.category = data.category;
+      if (data.category !== undefined) {
+        // Ensure category is a valid ObjectId
+        if (mongoose.Types.ObjectId.isValid(data.category)) {
+          product.category = new mongoose.Types.ObjectId(data.category);
+        } else {
+          throw new Error('Invalid category ID format');
+        }
+      }
       if (data.productType !== undefined) product.productType = data.productType;
       if (data.brand !== undefined) product.brand = data.brand?.trim();
       if (data.vendor !== undefined) product.vendor = data.vendor?.trim();
@@ -466,11 +571,119 @@ export class ProductService {
       if (data.compareAtPrice !== undefined) product.compareAtPrice = data.compareAtPrice;
       if (data.costPrice !== undefined) product.costPrice = data.costPrice;
       if (data.taxRate !== undefined) product.taxRate = data.taxRate;
-      if (data.stock !== undefined) product.stock = data.stock;
+      // Handle stock - only update for simple products
+      if (data.productType === 'simple') {
+        if (data.stock !== undefined && data.stock !== null) {
+          product.stock = Number(data.stock);
+        }
+        // If stock is not provided but product is simple, preserve existing stock
+      } else if (data.productType === 'variant') {
+        // For variant products, stock is calculated from variants
+        // Don't update main stock field - it should remain as is (usually 0 or undefined)
+        // Only update if explicitly set to a value
+        if (data.stock !== undefined && data.stock !== null) {
+          product.stock = Number(data.stock);
+        }
+        // Otherwise preserve existing stock value
+      }
+      
       if (data.lowStockThreshold !== undefined) product.lowStockThreshold = data.lowStockThreshold;
       if (data.trackInventory !== undefined) product.trackInventory = data.trackInventory;
-      if (data.images !== undefined) product.images = data.images;
-      if (data.variants !== undefined) product.variants = data.variants;
+      
+      // Update images if provided as an array
+      console.log('Update request images:', {
+        provided: data.images !== undefined,
+        isArray: Array.isArray(data.images),
+        length: Array.isArray(data.images) ? data.images.length : 0,
+        existingImages: product.images?.length || 0,
+        productType: product.productType,
+      });
+      
+      if (data.images !== undefined) {
+        if (Array.isArray(data.images)) {
+          // If array is provided
+          if (data.images.length === 0) {
+            // Empty array - for variant products, preserve existing images
+            // For simple products, clear images (user explicitly cleared)
+            if (product.productType === 'variant') {
+              console.log('Variant product with empty images array - preserving existing images');
+              // Don't update images - preserve existing
+            } else {
+              console.log('Simple product with empty images array - clearing images');
+              product.images = [];
+            }
+          } else {
+            // Ensure images array is properly formatted
+            const formattedImages = data.images
+              .filter((img: any) => img && img.url) // Filter out invalid images
+              .map((img: any, index: number) => ({
+                url: img.url || '',
+                altText: img.altText || '',
+                isPrimary: img.isPrimary || (index === 0 && !data.images.some((i: any) => i.isPrimary)),
+                order: img.order !== undefined ? img.order : index,
+              }));
+            
+            // Ensure at least one image is primary if images exist
+            if (formattedImages.length > 0 && !formattedImages.some((img: any) => img.isPrimary)) {
+              formattedImages[0].isPrimary = true;
+            }
+            
+            product.images = formattedImages;
+            console.log('Updated images:', formattedImages.length, formattedImages.map((img: any) => img.url));
+          }
+        } else {
+          // If images is not an array but is defined, preserve existing images
+          console.log('Images not an array, preserving existing:', product.images?.length || 0);
+        }
+      } else {
+        // If images is not provided in update, preserve existing images
+        console.log('Images not provided in update, preserving existing:', product.images?.length || 0);
+      }
+      if (data.variants !== undefined) {
+        // Ensure variant images and stock are properly formatted
+        const formattedVariants = data.variants.map((variant: any) => {
+          const variantImages = variant.images || [];
+          const formattedVariantImages = variantImages
+            .filter((img: any) => img && img.url)
+            .map((img: any, index: number) => ({
+              url: img.url || '',
+              altText: img.altText || '',
+              isPrimary: img.isPrimary || (index === 0 && !variantImages.some((i: any) => i.isPrimary)),
+              order: img.order !== undefined ? img.order : index,
+            }));
+          
+          // Ensure at least one image is primary if images exist
+          if (formattedVariantImages.length > 0 && !formattedVariantImages.some((img: any) => img.isPrimary)) {
+            formattedVariantImages[0].isPrimary = true;
+          }
+          
+          return {
+            variantName: variant.variantName || '',
+            sku: variant.sku || '',
+            price: variant.price !== undefined ? Number(variant.price) : 0,
+            costPrice: variant.costPrice !== undefined ? Number(variant.costPrice) : undefined,
+            stock: variant.stock !== undefined && variant.stock !== null ? Number(variant.stock) : 0,
+            lowStockThreshold: variant.lowStockThreshold !== undefined ? Number(variant.lowStockThreshold) : (product.lowStockThreshold || 5),
+            isActive: variant.isActive !== undefined ? variant.isActive : true,
+            attributes: variant.attributes || {},
+            images: formattedVariantImages,
+          };
+        });
+        
+        console.log('Updating variants:', {
+          count: formattedVariants.length,
+          variantsWithImages: formattedVariants.filter((v: any) => v.images && v.images.length > 0).length,
+          variantsWithStock: formattedVariants.filter((v: any) => (v.stock || 0) > 0).length,
+          totalVariantStock: formattedVariants.reduce((sum: number, v: any) => sum + (v.stock || 0), 0),
+          sampleVariant: formattedVariants[0] ? {
+            name: formattedVariants[0].variantName,
+            stock: formattedVariants[0].stock,
+            imagesCount: formattedVariants[0].images?.length || 0,
+          } : null,
+        });
+        
+        product.variants = formattedVariants;
+      }
       if (data.variantOptions !== undefined) product.variantOptions = data.variantOptions;
       if (data.seo !== undefined) {
         if (data.seo.metaTitle !== undefined) product.seo.metaTitle = data.seo.metaTitle;
@@ -479,6 +692,13 @@ export class ProductService {
       }
       if (data.shipping !== undefined) product.shipping = { ...product.shipping, ...data.shipping };
       
+      // Validate before saving
+      const validationError = product.validateSync();
+      if (validationError) {
+        const errors = Object.values(validationError.errors || {}).map((err: any) => err.message);
+        throw new Error(`Validation error: ${errors.join(', ')}`);
+      }
+      
       await product.save();
       
       return {
@@ -486,6 +706,13 @@ export class ProductService {
         message: 'Product updated successfully',
       };
     } catch (error: any) {
+      // Log detailed error for debugging
+      console.error('Error updating product:', {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        errors: error.errors,
+      });
       throw new Error(error?.message || 'Failed to update product');
     }
   }
@@ -589,6 +816,63 @@ export class ProductService {
       };
     } catch (error: any) {
       throw new Error(error?.message || 'Failed to upload image');
+    }
+  }
+
+  // Get featured products (public endpoint)
+  public async getFeaturedProducts(req: Request) {
+    try {
+      const { limit = 5 } = req.query;
+      const limitNum = Number(limit);
+
+      // Fetch featured and active products
+      const products = await Product.find({
+        isFeatured: true,
+        isActive: true,
+      })
+        .populate('category', 'name image')
+        .sort({ createdAt: -1 })
+        .limit(limitNum)
+        .lean();
+
+      // Format products with computed fields
+      const formattedProducts = products.map((product: any) => {
+        let stockStatus: string;
+        let totalStock = 0;
+
+        if (product.productType === 'variant') {
+          totalStock = product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0;
+          if (totalStock === 0) {
+            stockStatus = 'out_of_stock';
+          } else if (product.variants?.some((v: any) => v.stock > 0 && v.stock <= (v.lowStockThreshold || 5))) {
+            stockStatus = 'low_stock';
+          } else {
+            stockStatus = 'in_stock';
+          }
+        } else {
+          totalStock = product.stock || 0;
+          if (totalStock === 0) {
+            stockStatus = 'out_of_stock';
+          } else if (totalStock <= (product.lowStockThreshold || 5)) {
+            stockStatus = 'low_stock';
+          } else {
+            stockStatus = 'in_stock';
+          }
+        }
+
+        return {
+          ...product,
+          stockStatus,
+          totalStock,
+        };
+      });
+
+      return {
+        products: formattedProducts,
+        message: 'Featured products fetched successfully',
+      };
+    } catch (error: any) {
+      throw new Error(error?.message || 'Failed to fetch featured products');
     }
   }
 }

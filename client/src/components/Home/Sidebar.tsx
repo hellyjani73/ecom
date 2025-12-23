@@ -1,14 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
-  isLoggedIn: boolean;
   onClose: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, isLoggedIn, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+  const { isAuthenticated } = useAuth();
   return (
     <>
       {/* Overlay */}
@@ -28,12 +29,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isLoggedIn, onClose }) => {
         <div className="flex flex-col h-full">
           {/* Header with close button */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
+            <Link to={ROUTES.HOME} onClick={onClose} className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
                 <span className="text-white font-bold">N</span>
               </div>
               <span className="text-lg font-bold text-black">Nextgen</span>
-            </div>
+            </Link>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -56,13 +57,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isLoggedIn, onClose }) => {
 
           {/* Navigation Links */}
           <nav className="flex-1 p-4 space-y-4">
-            <a
-              href="#products"
+            <Link
+              to={ROUTES.PRODUCTS}
               onClick={onClose}
               className="block text-gray-700 hover:text-black transition-colors py-2"
             >
               Products
-            </a>
+            </Link>
             <a
               href="#about"
               onClick={onClose}
@@ -80,7 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isLoggedIn, onClose }) => {
           </nav>
 
           {/* Login/Register - Only when not logged in */}
-          {!isLoggedIn && (
+          {!isAuthenticated && (
             <div className="p-4 border-t border-gray-200 space-y-2">
               <Link 
                 to={ROUTES.LOGIN}

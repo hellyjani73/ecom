@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, LogIn, UserPlus } from 'lucide-react';
 import { ROUTES } from '../../constants/routes';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface HeaderProps {
-  isLoggedIn: boolean;
   wishlistCount: number;
   cartCount: number;
   onMenuClick: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, onMenuClick }) => {
+const Header: React.FC<HeaderProps> = ({ wishlistCount, cartCount, onMenuClick }) => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -21,6 +24,15 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`${ROUTES.PRODUCTS}?search=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate(ROUTES.PRODUCTS);
+    }
+  };
+
   return (
     <>
       <header
@@ -31,18 +43,18 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
-            <div className="flex items-center space-x-2">
+            <Link to={ROUTES.HOME} className="flex items-center space-x-2">
               <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
                 <span className="text-white font-bold text-lg">N</span>
               </div>
               <span className="text-xl font-bold text-black">Nextgen</span>
-            </div>
+            </Link>
 
             {/* Desktop Navigation Links - Only visible on lg and above */}
             <nav className="hidden lg:flex items-center space-x-6">
-              <a href="#products" className="text-gray-700 hover:text-black transition-colors">
+              <Link to={ROUTES.PRODUCTS} className="text-gray-700 hover:text-black transition-colors">
                 Products
-              </a>
+              </Link>
               <a href="#about" className="text-gray-700 hover:text-black transition-colors">
                 About
               </a>
@@ -52,7 +64,7 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
             </nav>
 
             {/* Search Bar - Desktop/Tablet in header, Mobile below */}
-            <div className="hidden md:flex flex-1 max-w-md mx-4 lg:mx-8">
+            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-4 lg:mx-8">
               <div className="relative w-full">
                 <input
                   type="text"
@@ -61,26 +73,31 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                 />
-                <svg
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <button
+                  type="submit"
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </button>
               </div>
-            </div>
+            </form>
 
             {/* Desktop Icons and Auth - Only visible on lg and above */}
             <div className="hidden lg:flex items-center space-x-4">
               {/* Wishlist */}
-              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Link to="/wishlist" className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <svg
                   className="w-6 h-6 text-gray-700"
                   fill="none"
@@ -99,10 +116,10 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
                     {wishlistCount}
                   </span>
                 )}
-              </button>
+              </Link>
 
               {/* Cart */}
-              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Link to={ROUTES.CART} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <svg
                   className="w-6 h-6 text-gray-700"
                   fill="none"
@@ -121,42 +138,40 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
                     {cartCount}
                   </span>
                 )}
-              </button>
+              </Link>
 
-              {/* User */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <svg
-                  className="w-6 h-6 text-gray-700"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              {/* User Account */}
+              {isAuthenticated ? (
+                <Link
+                  to={ROUTES.ACCOUNT_DASHBOARD}
+                  className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="My Account"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-              </button>
-
-              {/* Login/Register - Only when not logged in */}
-              {!isLoggedIn && (
-                <div className="flex items-center space-x-2 ml-2">
-                  <Link 
+                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                    <span className="text-gray-700 font-semibold text-sm">
+                      {user?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                    </span>
+                  </div>
+                </Link>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
                     to={ROUTES.LOGIN}
-                    className="px-4 py-2 text-gray-700 hover:text-black transition-colors"
+                    className="flex items-center gap-1 px-3 py-2 text-gray-700 hover:text-black transition-colors"
                   >
-                    Login
+                    <LogIn className="w-5 h-5" />
+                    <span className="text-sm font-medium">Login</span>
                   </Link>
-                  <Link 
+                  <Link
                     to={ROUTES.REGISTER}
-                    className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                    className="flex items-center gap-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
                   >
-                    Register
+                    <UserPlus className="w-5 h-5" />
+                    <span className="text-sm font-medium">Register</span>
                   </Link>
                 </div>
               )}
+
             </div>
 
             {/* Hamburger Menu - Only visible below lg */}
@@ -182,7 +197,7 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
         </div>
 
         {/* Mobile Search Bar - Below header on mobile */}
-        <div className="md:hidden px-4 pb-3">
+        <form onSubmit={handleSearch} className="md:hidden px-4 pb-3">
           <div className="relative">
             <input
               type="text"
@@ -191,21 +206,26 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, wishlistCount, cartCount, o
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
             />
-            <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+            <button
+              type="submit"
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </button>
           </div>
-        </div>
+        </form>
       </header>
     </>
   );

@@ -1,5 +1,7 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import ProductCard from './ProductCard';
+import { ROUTES } from '../../constants/routes';
 
 const TrendingShoes: React.FC = () => {
   const products = [
@@ -25,12 +27,12 @@ const TrendingShoes: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <h2 className="text-2xl font-bold mb-2 sm:mb-0">Trending Shoes</h2>
-          <a
-            href="#view-all"
+          <Link
+            to={ROUTES.PRODUCTS}
             className="text-gray-700 hover:text-black transition-colors flex items-center"
           >
             VIEW ALL <span className="ml-1">→</span>
-          </a>
+          </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {products.map((product, index) => (

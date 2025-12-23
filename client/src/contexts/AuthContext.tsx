@@ -102,6 +102,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // This ensures the cookie is available before navigation
         await new Promise(resolve => setTimeout(resolve, 100));
         
+        // Check for redirect after login (e.g., from checkout page)
+        const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
+        if (redirectAfterLogin) {
+          sessionStorage.removeItem('redirectAfterLogin');
+          navigate(redirectAfterLogin, { replace: true });
+          return;
+        }
+        
         // Check role (case-insensitive) - check both 'role' and 'userType' fields
         const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();
         
@@ -136,6 +144,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
         
+        // Check for redirect after login (e.g., from checkout page)
+        const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
+        if (redirectAfterLogin) {
+          sessionStorage.removeItem('redirectAfterLogin');
+          navigate(redirectAfterLogin, { replace: true });
+          return;
+        }
+        
         // Check role (case-insensitive) - check both 'role' and 'userType' fields
         const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();
         
@@ -169,6 +185,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { userDetails } = response.data.data;
         setUser(userDetails);
         localStorage.setItem('userDetails', JSON.stringify(userDetails));
+        
+        // Check for redirect after login (e.g., from checkout page)
+        const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
+        if (redirectAfterLogin) {
+          sessionStorage.removeItem('redirectAfterLogin');
+          navigate(redirectAfterLogin, { replace: true });
+          return;
+        }
         
         // Check role (case-insensitive) - check both 'role' and 'userType' fields
         const userRole = (userDetails.role || userDetails.userType || '').toLowerCase();

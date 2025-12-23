@@ -22,3 +22,4 @@ brandSchema.index({ isActive: 1 });
 
 export const Brand = mongoose.model<IBrand>('Brand', brandSchema);
 
+

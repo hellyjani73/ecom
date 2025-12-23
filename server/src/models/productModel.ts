@@ -6,6 +6,14 @@ export interface IVariantOption {
   values: string[]; // e.g., ["Red", "Blue", "Green"]
 }
 
+// Variant Image Schema
+export interface IVariantImage {
+  url: string;
+  altText?: string;
+  isPrimary: boolean;
+  order: number;
+}
+
 // Variant Schema
 export interface IVariant {
   variantName: string; // e.g., "Red - Small - Cotton"
@@ -15,7 +23,8 @@ export interface IVariant {
   costPrice?: number;
   stock: number;
   lowStockThreshold: number;
-  image?: string;
+  image?: string; // Legacy support
+  images?: IVariantImage[]; // New: Multiple images per variant
   isActive: boolean;
   attributes: { [key: string]: string }; // e.g., { "Color": "Red", "Size": "Small" }
 }
@@ -115,6 +124,13 @@ const variantOptionSchema = new Schema<IVariantOption>({
   values: [{ type: String, required: true }],
 }, { _id: false });
 
+const variantImageSchema = new Schema<IVariantImage>({
+  url: { type: String, required: true },
+  altText: { type: String },
+  isPrimary: { type: Boolean, default: false },
+  order: { type: Number, default: 0 },
+}, { _id: false });
+
 const variantSchema = new Schema<IVariant>({
   variantName: { type: String, required: true },
   sku: { type: String, required: true, unique: true },
@@ -123,7 +139,8 @@ const variantSchema = new Schema<IVariant>({
   costPrice: { type: Number, min: 0 },
   stock: { type: Number, default: 0, min: 0 },
   lowStockThreshold: { type: Number, default: 5, min: 0 },
-  image: { type: String },
+  image: { type: String }, // Legacy support
+  images: [variantImageSchema], // New: Multiple images per variant
   isActive: { type: Boolean, default: true },
   attributes: { type: Map, of: String },
 }, { _id: false });

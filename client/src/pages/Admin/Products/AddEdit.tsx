@@ -78,8 +78,17 @@ const AdminProductAddEdit: React.FC = () => {
     }
   }, [id, isEditMode]);
 
+  // Track if variants have been loaded from the database
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
+
   // Auto-generate variants when Color and Size options change
+  // Only run this in create mode, not edit mode (to preserve existing variant data)
   useEffect(() => {
+    // Don't auto-generate if we're in edit mode and variants are already loaded
+    if (isEditMode && variantsLoaded) {
+      return; // Preserve existing variants in edit mode
+    }
+
     const colorOption = variantOptions.find(opt => opt.name.toLowerCase() === 'color');
     const sizeOption = variantOptions.find(opt => opt.name.toLowerCase() === 'size');
     
@@ -103,12 +112,34 @@ const AdminProductAddEdit: React.FC = () => {
       };
       generate({}, [colorOption, sizeOption], 0);
 
-      // Create variant objects
+      // Create variant objects - preserve existing variant data if variant already exists
       const newVariants: Variant[] = combinations.map((attributes) => {
         const variantName = Object.entries(attributes)
           .map(([key, value]) => value)
           .join(' - ');
         
+        // Check if this variant already exists
+        const existingVariant = variants.find(v => v.variantName === variantName);
+        
+        if (existingVariant) {
+          // Preserve existing variant data (stock, images, etc.)
+          return {
+            ...existingVariant,
+            // Only update attributes and SKU if needed
+            attributes,
+            sku: formData.sku 
+              ? `${formData.sku}-${Object.entries(attributes)
+                  .map(([key, value]) => {
+                    const keyCode = key.charAt(0).toUpperCase();
+                    const valueCode = value.substring(0, 2).toUpperCase().replace(/\s/g, '');
+                    return `${keyCode}${valueCode}`;
+                  })
+                  .join('-')}`
+              : existingVariant.sku,
+          };
+        }
+        
+        // New variant - create with defaults
         const variantSKU = formData.sku 
           ? `${formData.sku}-${Object.entries(attributes)
               .map(([key, value]) => {
@@ -133,8 +164,8 @@ const AdminProductAddEdit: React.FC = () => {
       });
 
       setVariants(newVariants);
-    } else {
-      // Clear variants if Color or Size is empty
+    } else if (!isEditMode) {
+      // Clear variants if Color or Size is empty (only in create mode)
       setVariants([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,6 +222,29 @@ const AdminProductAddEdit: React.FC = () => {
       const response = await productService.GetProductById(id);
       if (response.data.success) {
         const product = response.data.data;
+        console.log('Fetched product:', {
+          name: product.name,
+          imagesCount: product.images?.length || 0,
+          images: product.images,
+          stock: product.stock,
+          productType: product.productType,
+          variantsCount: product.variants?.length || 0,
+          variantImages: product.variants?.map((v: any) => ({
+            variantName: v.variantName,
+            imagesCount: v.images?.length || 0,
+            stock: v.stock,
+            hasImages: v.images && Array.isArray(v.images) && v.images.length > 0,
+            images: v.images,
+          })),
+          totalVariantStock: product.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || 0,
+          variantsWithStock: product.variants?.filter((v: any) => (v.stock || 0) > 0).length || 0,
+          variantsWithImages: product.variants?.filter((v: any) => v.images && v.images.length > 0).length || 0,
+        });
+        // For variant products, preserve stock as undefined (don't set to 0)
+        const stockValue = product.productType === 'variant' 
+          ? (product.stock !== undefined && product.stock !== null ? product.stock : undefined)
+          : (product.stock ?? 0);
+        
         setFormData({
           name: product.name,
           sku: product.sku,
@@ -207,15 +261,59 @@ const AdminProductAddEdit: React.FC = () => {
           compareAtPrice: product.compareAtPrice,
           costPrice: product.costPrice,
           taxRate: product.taxRate,
-          stock: product.stock,
-          lowStockThreshold: product.lowStockThreshold,
-          trackInventory: product.trackInventory,
-          images: product.images || [],
-          seo: product.seo,
-          shipping: product.shipping,
+          stock: stockValue, // Preserve undefined for variant products
+          lowStockThreshold: product.lowStockThreshold ?? 5,
+          trackInventory: product.trackInventory ?? true,
+          images: product.images && Array.isArray(product.images) && product.images.length > 0 
+            ? product.images 
+            : [], // Ensure images is always an array
+          seo: product.seo || { slug: '' },
+          shipping: product.shipping || { requiresShipping: true },
         });
+        
+        // Ensure variants have their images and stock preserved
+        const variantsWithImages = (product.variants || []).map((v: any) => {
+          const variantData = {
+            variantName: v.variantName || '',
+            sku: v.sku || '',
+            price: v.price !== undefined ? Number(v.price) : 0,
+            costPrice: v.costPrice !== undefined ? Number(v.costPrice) : undefined,
+            stock: v.stock !== undefined && v.stock !== null ? Number(v.stock) : 0,
+            lowStockThreshold: v.lowStockThreshold !== undefined ? Number(v.lowStockThreshold) : (product.lowStockThreshold || 5),
+            isActive: v.isActive !== undefined ? v.isActive : true,
+            attributes: v.attributes || {},
+            images: v.images && Array.isArray(v.images) && v.images.length > 0 ? v.images : [],
+          };
+          return variantData;
+        });
+        
         setVariantOptions(product.variantOptions || []);
-        setVariants(product.variants || []);
+        setVariants(variantsWithImages);
+        setVariantsLoaded(true); // Mark variants as loaded to prevent auto-regeneration
+        
+        console.log('Loaded variants with images:', variantsWithImages.map((v: any) => ({
+          name: v.variantName,
+          imagesCount: v.images?.length || 0,
+          stock: v.stock,
+          hasImages: v.images && v.images.length > 0,
+          imageUrls: v.images?.map((img: any) => img.url) || [],
+        })));
+        
+        console.log('Variants summary:', {
+          total: variantsWithImages.length,
+          withStock: variantsWithImages.filter(v => (v.stock || 0) > 0).length,
+          withImages: variantsWithImages.filter(v => v.images && v.images.length > 0).length,
+          totalStock: variantsWithImages.reduce((sum, v) => sum + (v.stock || 0), 0),
+        });
+        
+        // Log actual variant state to verify
+        setTimeout(() => {
+          console.log('Current variants state after load:', variantsWithImages.map((v: any) => ({
+            name: v.variantName,
+            stock: v.stock,
+            imagesCount: v.images?.length || 0,
+          })));
+        }, 100);
       }
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to fetch product');
@@ -237,11 +335,15 @@ const AdminProductAddEdit: React.FC = () => {
     if (files.length === 0) return;
 
     // Validate file count
-    if (formData.images && formData.images.length + files.length > 10) {
+    const currentImageCount = formData.images?.length || 0;
+    if (currentImageCount + files.length > 10) {
       alert('Maximum 10 images allowed');
+      e.target.value = ''; // Reset input
       return;
     }
 
+    // Validate all files first
+    const validFiles: File[] = [];
     for (const file of files) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
@@ -254,42 +356,75 @@ const AdminProductAddEdit: React.FC = () => {
         alert(`${file.name} is too large. Max size is 5MB`);
         continue;
       }
+      validFiles.push(file);
+    }
 
-      try {
-        setUploadingImage(true);
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          try {
-            const base64String = reader.result as string;
-            const compressedImage = await compressImage(base64String);
-            const uploadResponse = await productService.UploadImageToCloudinary(compressedImage);
-            
-            if (uploadResponse.data.success && uploadResponse.data.data) {
-              const imageUrl = (uploadResponse.data.data as any)?.url;
-              if (imageUrl) {
-                const newImage: ProductImage = {
-                  url: imageUrl,
-                  altText: '',
-                  isPrimary: formData.images?.length === 0,
-                  order: formData.images?.length || 0,
-                };
-                setFormData(prev => ({
-                  ...prev,
-                  images: [...(prev.images || []), newImage],
-                }));
+    if (validFiles.length === 0) {
+      e.target.value = ''; // Reset input
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const uploadPromises = validFiles.map(async (file, index) => {
+        try {
+          // Read file as base64
+          const base64String = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (reader.result) {
+                resolve(reader.result as string);
+              } else {
+                reject(new Error('Failed to read file'));
               }
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+          });
+
+          // Compress image
+          const compressedImage = await compressImage(base64String);
+          
+          // Upload to Cloudinary
+          const uploadResponse = await productService.UploadImageToCloudinary(compressedImage);
+          
+          if (uploadResponse.data.success && uploadResponse.data.data) {
+            const imageUrl = (uploadResponse.data.data as any)?.url;
+            if (imageUrl) {
+              return {
+                url: imageUrl,
+                altText: '',
+                isPrimary: currentImageCount === 0 && index === 0,
+                order: currentImageCount + index,
+              } as ProductImage;
             }
-          } catch (error: any) {
-            console.error('Error uploading image:', error);
-            alert(`Failed to upload ${file.name}`);
-          } finally {
-            setUploadingImage(false);
           }
-        };
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.error('Error processing image:', error);
+          throw new Error(`Failed to upload ${file.name}`);
+        } catch (error: any) {
+          console.error(`Error uploading ${file.name}:`, error);
+          alert(`Failed to upload ${file.name}: ${error.message || 'Unknown error'}`);
+          return null;
+        }
+      });
+
+      // Wait for all uploads to complete
+      const uploadedImages = await Promise.all(uploadPromises);
+      const successfulImages = uploadedImages.filter((img): img is ProductImage => img !== null);
+
+      if (successfulImages.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          images: [...(prev.images || []), ...successfulImages],
+        }));
       }
+
+      // Reset input
+      e.target.value = '';
+    } catch (error: any) {
+      console.error('Error processing images:', error);
+      alert('Failed to process images. Please try again.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -387,7 +522,8 @@ const AdminProductAddEdit: React.FC = () => {
       newErrors.basePrice = 'Selling price is required and must be greater than 0';
     }
 
-    if (formData.images && formData.images.length === 0) {
+    // Only require images for simple products
+    if (formData.productType === 'simple' && (!formData.images || formData.images.length === 0)) {
       newErrors.images = 'At least one image is required';
     }
 
@@ -419,6 +555,10 @@ const AdminProductAddEdit: React.FC = () => {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 100);
+      
+      // Show alert with validation errors
+      const errorMessages = Object.values(newErrors).join('\n');
+      alert(`Please fix the following errors:\n\n${errorMessages}`);
     }
     
     return Object.keys(newErrors).length === 0;
@@ -492,15 +632,112 @@ const AdminProductAddEdit: React.FC = () => {
 
     try {
       setSaving(true);
+      
+      // Ensure images array is properly formatted - always include existing images
+      const currentImages = formData.images || [];
+      const formattedImages = currentImages
+        .filter(img => img && img.url) // Filter out any invalid images
+        .map((img, index) => ({
+          url: img.url || '',
+          altText: img.altText || '',
+          isPrimary: img.isPrimary || (index === 0 && !currentImages.some(i => i.isPrimary)),
+          order: img.order !== undefined ? img.order : index,
+        }));
+
+      // Ensure at least one image is primary if images exist
+      if (formattedImages.length > 0 && !formattedImages.some(img => img.isPrimary)) {
+        formattedImages[0].isPrimary = true;
+      }
+
+      // Ensure stock is preserved for simple products
+      const stockValue = formData.productType === 'simple' 
+        ? (formData.stock !== undefined && formData.stock !== null ? Number(formData.stock) : 0)
+        : undefined;
+
+      // For variant products, only send images if they exist (don't send empty array to preserve existing)
+      // For simple products, always send images (even if empty, validation will catch it)
+      const imagesToSend = formData.productType === 'variant' && formattedImages.length === 0
+        ? undefined // Don't send images field for variant products if empty (preserves existing)
+        : formattedImages; // Send images for simple products or if variant has images
+
+      // Ensure variants have all their data preserved (stock, images, etc.)
+      const formattedVariants = formData.productType === 'variant' 
+        ? variants.map((variant) => ({
+            ...variant,
+            stock: variant.stock !== undefined && variant.stock !== null ? Number(variant.stock) : 0,
+            images: variant.images && Array.isArray(variant.images) ? variant.images : [],
+            price: variant.price || 0,
+            costPrice: variant.costPrice,
+            lowStockThreshold: variant.lowStockThreshold || formData.lowStockThreshold || 5,
+            isActive: variant.isActive !== undefined ? variant.isActive : true,
+          }))
+        : undefined;
+
       const payload: ProductRequest = {
         ...formData,
         basePrice: formData.basePrice, // sellingPrice
         costPrice: formData.costPrice, // buyingPrice (optional)
         taxRate: formData.taxRate || undefined, // Optional
         compareAtPrice: undefined, // Remove compareAtPrice
-        variants: formData.productType === 'variant' ? variants : undefined,
+        images: imagesToSend, // Only include if not empty for variant products
+        stock: stockValue, // Always include stock for simple products
+        variants: formattedVariants, // Ensure all variant data is included
         variantOptions: formData.productType === 'variant' ? variantOptions : undefined,
+        // Ensure category is included (required field)
+        category: formData.category,
       };
+
+      console.log('Update payload:', {
+        imagesCount: formattedImages.length,
+        imagesToSend: imagesToSend === undefined ? 'undefined (preserve existing)' : imagesToSend.length,
+        stock: stockValue,
+        stockUndefined: stockValue === undefined,
+        productType: formData.productType,
+        hasImages: formattedImages.length > 0,
+        imageUrls: formattedImages.map(img => img.url),
+        variantsCount: formattedVariants?.length || 0,
+        variantsWithImages: formattedVariants?.filter(v => v.images && v.images.length > 0).length || 0,
+        variantsWithStock: formattedVariants?.filter(v => (v.stock || 0) > 0).length || 0,
+        totalVariantStock: formattedVariants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0,
+        sampleVariant: formattedVariants?.[0] ? {
+          name: formattedVariants[0].variantName,
+          stock: formattedVariants[0].stock,
+          imagesCount: formattedVariants[0].images?.length || 0,
+        } : null,
+      });
+
+      // Validate images before submission (only for simple products)
+      if (formData.productType === 'simple' && formattedImages.length === 0) {
+        alert('Please add at least one image for the product');
+        setSaving(false);
+        return;
+      }
+
+      // For variant products, check if variants have images
+      if (formData.productType === 'variant') {
+        const variantsWithImages = variants.filter(v => v.images && v.images.length > 0);
+        console.log('Variant product - variants with images:', variantsWithImages.length, 'out of', variants.length);
+        if (variants.length > 0 && variantsWithImages.length === 0) {
+          const confirmProceed = window.confirm(
+            'No images have been added to any variants. Do you want to proceed without images?'
+          );
+          if (!confirmProceed) {
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
+      console.log('Submitting product:', {
+        productType: formData.productType,
+        imagesCount: formattedImages.length,
+        variantsCount: variants.length,
+        variantsWithImages: formData.productType === 'variant' 
+          ? variants.filter(v => v.images && v.images.length > 0).length 
+          : 0,
+      });
+
+      console.log('Full payload being sent:', JSON.stringify(payload, null, 2));
 
       let response;
       if (isEditMode && id) {
@@ -510,11 +747,29 @@ const AdminProductAddEdit: React.FC = () => {
       }
 
       if (response.data.success) {
+        // Verify images were saved
+        const savedProduct = response.data.data;
+        if (savedProduct && savedProduct.images) {
+          console.log('Product saved with images:', savedProduct.images.length);
+          if (formattedImages.length > 0 && savedProduct.images.length === 0) {
+            console.warn('Warning: Images were sent but not saved. Check backend logs.');
+            alert('Product saved but images may not have been stored. Please check and re-upload images if needed.');
+          }
+        }
         alert(isEditMode ? 'Product updated successfully!' : 'Product created successfully!');
         navigate(ROUTES.ADMIN_PRODUCTS);
+      } else {
+        alert(response.data.message || 'Failed to save product');
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to save product');
+      console.error('Error saving product:', error);
+      console.error('Form data images:', formData.images);
+      console.error('Error details:', error.response?.data);
+      console.error('Full error response:', error.response);
+      console.error('Form data category:', formData.category);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save product';
+      const errorDetails = error.response?.data?.error || error.response?.data?.details || '';
+      alert(`Error: ${errorMessage}${errorDetails ? '\n\nDetails: ' + errorDetails : ''}\n\nCheck console for details.`);
     } finally {
       setSaving(false);
     }
@@ -1017,6 +1272,18 @@ const AdminProductAddEdit: React.FC = () => {
                                 {(variants[variantIndex]?.images || []).map((img, imgIndex) => (
                                   <div key={imgIndex} className="color-image-item">
                                     <img src={img.url} alt={img.altText || `${color} image ${imgIndex + 1}`} />
+                                    <button
+                                      type="button"
+                                      className="image-cancel-btn"
+                                      onClick={() => {
+                                        const updated = [...variants];
+                                        updated[variantIndex].images = updated[variantIndex].images?.filter((_, idx) => idx !== imgIndex);
+                                        setVariants(updated);
+                                      }}
+                                      title="Remove image"
+                                    >
+                                      ×
+                                    </button>
                                     {img.isPrimary && <span className="primary-badge">Primary</span>}
                                     <div className="image-actions">
                                       <button
@@ -1248,6 +1515,14 @@ const AdminProductAddEdit: React.FC = () => {
                 {formData.images?.map((image, index) => (
                   <div key={index} className="image-item">
                     <img src={image.url} alt={image.altText || `Product image ${index + 1}`} />
+                    <button
+                      type="button"
+                      className="image-cancel-btn"
+                      onClick={() => handleDeleteImage(index)}
+                      title="Remove image"
+                    >
+                      ×
+                    </button>
                     {image.isPrimary && <span className="primary-badge">Primary</span>}
                     <div className="image-actions">
                       <button
@@ -1341,7 +1616,7 @@ const AdminProductAddEdit: React.FC = () => {
               <h2>SEO & Meta</h2>
               
               <div className="form-group">
-                <label>Meta Title</label>
+                <label>Meta Title <span className="optional">(Optional)</span></label>
                 <input
                   type="text"
                   maxLength={60}
@@ -1353,7 +1628,7 @@ const AdminProductAddEdit: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Meta Description</label>
+                <label>Meta Description <span className="optional">(Optional)</span></label>
                 <textarea
                   maxLength={160}
                   value={formData.seo?.metaDescription || ''}
@@ -1365,7 +1640,7 @@ const AdminProductAddEdit: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>URL Slug</label>
+                <label>URL Slug <span className="optional">(Optional)</span></label>
                 <input
                   type="text"
                   value={formData.seo?.slug || ''}
@@ -1376,7 +1651,7 @@ const AdminProductAddEdit: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label>Focus Keyword</label>
+                <label>Focus Keyword <span className="optional">(Optional)</span></label>
                 <input
                   type="text"
                   value={formData.seo?.focusKeyword || ''}
@@ -1399,7 +1674,7 @@ const AdminProductAddEdit: React.FC = () => {
                     checked={formData.shipping?.requiresShipping !== false}
                     onChange={(e) => handleInputChange('shipping', { ...formData.shipping, requiresShipping: e.target.checked })}
                   />
-                  Requires Shipping
+                  Requires Shipping <span className="optional">(Optional)</span>
                 </label>
               </div>
 
@@ -1407,7 +1682,7 @@ const AdminProductAddEdit: React.FC = () => {
                 <>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Weight</label>
+                      <label>Weight <span className="optional">(Optional)</span></label>
                       <div className="weight-input">
                         <input
                           type="number"
@@ -1429,7 +1704,7 @@ const AdminProductAddEdit: React.FC = () => {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Length (cm)</label>
+                      <label>Length (cm) <span className="optional">(Optional)</span></label>
                       <input
                         type="number"
                         step="0.01"
@@ -1439,7 +1714,7 @@ const AdminProductAddEdit: React.FC = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Width (cm)</label>
+                      <label>Width (cm) <span className="optional">(Optional)</span></label>
                       <input
                         type="number"
                         step="0.01"
@@ -1449,7 +1724,7 @@ const AdminProductAddEdit: React.FC = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Height (cm)</label>
+                      <label>Height (cm) <span className="optional">(Optional)</span></label>
                       <input
                         type="number"
                         step="0.01"
@@ -1461,7 +1736,7 @@ const AdminProductAddEdit: React.FC = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Shipping Class</label>
+                    <label>Shipping Class <span className="optional">(Optional)</span></label>
                     <select
                       value={formData.shipping?.shippingClass || ''}
                       onChange={(e) => handleInputChange('shipping', { ...formData.shipping, shippingClass: e.target.value })}

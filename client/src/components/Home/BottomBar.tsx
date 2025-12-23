@@ -1,4 +1,6 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../../constants/routes';
 
 interface BottomBarProps {
   wishlistCount: number;
@@ -10,7 +12,7 @@ const BottomBar: React.FC<BottomBarProps> = ({ wishlistCount, cartCount }) => {
     <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
       <div className="flex justify-around items-center py-3">
         {/* Wishlist */}
-        <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <Link to="/wishlist" className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <svg
             className="w-6 h-6 text-gray-700"
             fill="none"
@@ -29,10 +31,10 @@ const BottomBar: React.FC<BottomBarProps> = ({ wishlistCount, cartCount }) => {
               {wishlistCount}
             </span>
           )}
-        </button>
+        </Link>
 
         {/* Cart */}
-        <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <Link to={ROUTES.CART} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <svg
             className="w-6 h-6 text-gray-700"
             fill="none"
@@ -51,7 +53,7 @@ const BottomBar: React.FC<BottomBarProps> = ({ wishlistCount, cartCount }) => {
               {cartCount}
             </span>
           )}
-        </button>
+        </Link>
 
         {/* User */}
         <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -75,5 +77,6 @@ const BottomBar: React.FC<BottomBarProps> = ({ wishlistCount, cartCount }) => {
 };
 
 export default BottomBar;
+
 
 

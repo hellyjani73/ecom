@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import categoryService from '../../services/categoryService';
 import { Category } from '../../services/types/category';
+import { ROUTES } from '../../constants/routes';
 
 const BrowseCategories: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
@@ -126,14 +128,24 @@ const BrowseCategories: React.FC = () => {
 
 // Category Card Component
 const CategoryCard: React.FC<{ category: Category }> = ({ category }) => {
+  const navigate = useNavigate();
+  
   // parentCategory is just a type/classification, not a relationship
   const getTypeLabel = (type?: string) => {
     if (!type) return null;
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
+  const handleCategoryClick = () => {
+    // Navigate to products page with category filter
+    navigate(`${ROUTES.PRODUCTS}?category=${category._id}`);
+  };
+
   return (
-    <div className="relative h-48 sm:h-56 rounded-2xl overflow-hidden group cursor-pointer transform transition-transform hover:scale-105">
+    <div 
+      onClick={handleCategoryClick}
+      className="relative h-48 sm:h-56 rounded-2xl overflow-hidden group cursor-pointer transform transition-transform hover:scale-105"
+    >
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent z-10" />
       <img
         src={category.image}

@@ -134,6 +134,8 @@ export interface ProductListFilters {
   stockStatus?: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
   minPrice?: number;
   maxPrice?: number;
+  size?: string;
+  color?: string;
   sortBy?: 'name' | 'price' | 'date' | 'stock';
   sortOrder?: 'asc' | 'desc';
   page?: number;
